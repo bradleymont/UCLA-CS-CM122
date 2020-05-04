@@ -40,12 +40,35 @@ def parse_reads_file(reads_fn):
     TODO: Use this space to implement any additional functions you might need
 """
 
+# breaks down the reads into kmers
+def break_into_kmers(reads, k):
+    kmers = []
+
+    for read in reads:
+        for i in range(0, len(read) - k + 1):
+            kmers.append(read[i:(i + k)])
+
+    return kmers
+
+# returns a dictionary that maps each read to the amount of times it appears
+def get_kmer_frequencies(kmers):
+    kmer_to_frequency = {}
+
+    for kmer in kmers:
+        if kmer in kmer_to_frequency:
+            kmer_to_frequency[kmer] += 1
+        else:
+            kmer_to_frequency[kmer] = 1
+
+    return kmer_to_frequency
+
 # returns an adjacency list representation of the de Bruijn graph
-def form_de_bruijn_graph(kmers):
+# even if a kmer has a frequency > 1, we still only add 1 edge (removing duplicates)
+def form_de_bruijn_graph(kmer_to_frequency):
     # for each k-mer:
     #   prefix -> suffix
     adjacency_list = {}
-    for kmer in kmers:
+    for kmer in kmer_to_frequency:
         prefix = kmer[:-1]
         suffix = kmer[1:]
         if prefix in adjacency_list:
@@ -192,25 +215,36 @@ if __name__ == "__main__":
     TODO: Call functions to do the actual assembly here
     """
 
-    # TODO: WE CAN ALSO JUST MODIFY PARSE_READ_FILES BUT IM NOT SURE IF WE CAN CHANGE IT
-    # Note: in order to avoid issues with variable length read pairs, we will
+    ###### STEP 1: CONVERT FROM READ-PAIRS TO SINGLE READS ######
+    # in order to avoid issues with variable length read pairs, we will
     # consider each part of the read pair as its own independent read
     # therefore, we "flatten" the input_reads list so each read is its own entry
     input_reads = [read for read_pair in input_reads for read in read_pair]
 
-    ###### STEP 1: CONSTRUCT DE BRUIJN GRAPH ######
-    # adjacency list representation of the de Bruijn graph
-    adjacency_list = form_de_bruijn_graph(input_reads)
+    ###### STEP 2: BREAK DOWN READS INTO SMALLER K-MERS ######
+    # currently, our reads are 50-mers
+    # we will use k = 25 to break them down into 25-mers
+    kmers = break_into_kmers(input_reads, 25)
 
-    ###### STEP 2: FIND ALL MAXIMAL NON-BRANCHING PATHS IN DE BRUIJN GRAPH ######
+    ###### STEP 3: REMOVE INFREQUENT KMERS ######
+    # any kmer with low frequency has a high probability of being erroneous
+    
+    # first, map each kmer to the amount of times it occurs
+    kmer_to_frequency = get_kmer_frequencies(kmers)
+
+    # then, remove any kmers with a frequency <= 3 - we assume they're erroneous
+    kmer_to_frequency = {kmer: freq for kmer, freq in kmer_to_frequency.items() if freq > 3}
+
+    ###### STEP 4: CONSTRUCT DE BRUIJN GRAPH ######
+    # adjacency list representation of the de Bruijn graph
+    # Note: we also remove duplicate edges from the de Bruijn graph
+    adjacency_list = form_de_bruijn_graph(kmer_to_frequency)
+
+    ###### STEP 5: FIND ALL MAXIMAL NON-BRANCHING PATHS IN DE BRUIJN GRAPH ######
     paths = find_paths(adjacency_list)
 
-    ###### STEP 3: FORM CONTIGS FROM MAXIMAL NON-BRANCHING PATHS ######
+    ###### STEP 6: FORM CONTIGS FROM MAXIMAL NON-BRANCHING PATHS ######
     contigs = form_contigs(paths)
-
-    # replace contigs with a list of the contigs that I recover
-    #contigs = ['GCTGACTAGCTAGCTACGATCGATCGATCGATCGATCGATGACTAGCTAGCTAGCGCTGACT']
-    #contigs = ["contig1","contig2","contig3"]
 
     output_fn = args.output_file
     zip_fn = output_fn + '.zip'
