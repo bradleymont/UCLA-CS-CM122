@@ -1,5 +1,5 @@
 I ignored the fact that we were given read-pairs and considered everything as a single read. I then broke the
 reads down into 25-mers, and removed any 25-mers with a frequency <= 3 because those have a high probability
 of being erroneous. I then constructed a de Bruijn graph with the 25-mers as the edges (with duplicate edges
-removed). Then, I found all of the maximal non-branching paths in the de Bruijn graphs, and I formed the contigs
+removed). Then, I found all of the maximal non-branching paths in the de Bruijn graph, and I formed the contigs
 from those paths.
