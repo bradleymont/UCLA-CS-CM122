@@ -31,7 +31,6 @@ def parse_reads_file(reads_fn):
         print("Could not read file: ", reads_fn)
         return None
 
-
 def parse_ref_file(ref_fn):
     """
     :param ref_fn: the file containing the reference genome
@@ -51,7 +50,6 @@ def parse_ref_file(ref_fn):
     except IOError:
         print("Could not read file: ", ref_fn)
         return None
-
 
 """
     TODO: Use this space to implement any additional functions you might need
@@ -143,7 +141,7 @@ def get_matching_sections(kmer, reference, possible_indices):
         num_mismatches = sum(kmer[i] != matching_section[i] for i in range(KMER_SIZE))
 
         # if the # of mismatches <= ERROR_THRESHOLD mismatches
-        # AND if # mistmatches > 0 since there's no SNPs if it matches perfectly
+        # AND if # mismatches > 0 since there's no SNPs if it matches perfectly
         if num_mismatches > 0 and num_mismatches <= ERROR_THRESHOLD:
             # consider this section a match
             matching_sections.append((matching_section, index))
@@ -152,7 +150,7 @@ def get_matching_sections(kmer, reference, possible_indices):
 
 # takes in a kmer and its matching sections and returns any SNPs
 def get_snps_for_kmer(kmer, matching_sections):
-    # maps an location to its SNP
+    # maps a location to its SNP
     kmer_snps = {}
 
     for ref_section, start_index in matching_sections:
@@ -168,43 +166,16 @@ def get_snps_for_kmer(kmer, matching_sections):
     
     return kmer_snps
 
-'''
-# returns the most common element in list l
-def get_most_common(l):
-    elementToFreq = {}
-
-    for element in l:
-        if element in elementToFreq:
-            elementToFreq[element] += 1
-        else:
-            elementToFreq[element] = 1
-
-    print(elementToFreq)
-    # return the element with the max frequency in element to freq
-    max_freq = 0
-    most_common_element = None
-    for element in elementToFreq:
-        if elementToFreq[element] > max_freq:
-            max_freq = elementToFreq[element]
-            most_common_element = element
-
-    return most_common_element
-'''
-
 # takes in kmers and a reference index and returns the SNPs
 def get_snps(kmers, reference_index, reference):
     # maps an index to the snp at that index
-    possible_snps = {}
+    snps = {}
 
     for kmer in kmers:
         # get all the possible indices that the kmer could start at
-
-        # THIS COULD BE OPTIMIZED BC IT CURRENTLY RETURNS DUPLICATES
-        # BC I THINK IF IT SHOWS THE SAME INDEX 3 TIMES, ITS A PERFECT MATCH AND WONT ADD ANY SNPS
-
         possible_indices = get_possible_indices(kmer, reference_index)
 
-        # for now, I'm just going to remove duplicates from possible_indices
+        # remove duplicates from possible_indices
         possible_indices = list(dict.fromkeys(possible_indices))
 
         # get matching sections in reference genome
@@ -217,32 +188,14 @@ def get_snps(kmers, reference_index, reference):
 
         # find the SNPs and add them to our result
         curr_snps = get_snps_for_kmer(kmer, matching_sections)
-
         
-        # ADD THE FIRST OCCURANCE OF EACH SNP (DOING CONSENSUS IS REALLY HARD)
+        # add the SNPs to our result (avoiding adding multiple SNPs at the same location)
         for index in curr_snps:
-            if index not in possible_snps:
-                possible_snps[index] = curr_snps[index]
-        
-
-        '''
-        # add the curr_snps to possible_snps
-        for index in curr_snps:
-            if index in possible_snps:
-                possible_snps[index].append(curr_snps[index])
-            else:
-                possible_snps[index] = [curr_snps[index]]
-        '''
-
-    '''
-    # pick the most common SNP at each position
-    for index in possible_snps:
-        possible_snps[index] = get_most_common(possible_snps[index])
-    '''
+            if index not in snps:
+                snps[index] = curr_snps[index]
 
     # return only the SNPs
-    return list(possible_snps.values())
-    #return possible_snps
+    return list(snps.values())
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='basic_aligner.py takes in data for homework assignment 1 consisting '
@@ -299,14 +252,12 @@ if __name__ == "__main__":
     kmer_to_frequency = {kmer: freq for kmer, freq in kmer_to_frequency.items() if freq > 1}
 
     # now, we ignore the frequencies for the following reason:
-    # any kmer has a frequency of at least 2, so it will always beat the reference genome in the consensus algorithm
+    # any kmer has a frequency of at least 2, so it will always outnumber the reference genome
     # so we convert from dictionary back into a list of kmers
     kmers = list(kmer_to_frequency.keys())
 
     ###### STEP 5: USE HASHING ALGORITHM TO FIND SNPS ######
     snps = get_snps(kmers, reference_index, reference)
-
-    #snps = [['A', 'G', 3425]]
 
     output_fn = args.output_file
     zip_fn = output_fn + '.zip'
