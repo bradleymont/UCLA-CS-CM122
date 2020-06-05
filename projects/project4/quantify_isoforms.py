@@ -2,6 +2,7 @@ import argparse
 import zipfile
 import numpy as np
 
+READ_LENGTH = 50
 
 def parse_annotation_file(annotation_fn):
     """
@@ -80,9 +81,81 @@ def quantify_isoforms(genes, genome, reads):
             4. Compute the isoform abundances based on your above formulation
     """
 
+    result = []
 
+    for gene in genes:
+        exonIndexRanges = gene[0]
+        isoforms = gene[1]
 
-    return [('accccaggtata', .7), ('acccctatatctt', .3)]
+        numExons = len(exonIndexRanges)
+        numIsoforms = len(isoforms)
+
+        exonLengths = []
+        exons = []
+
+        # find the # of reads aligned to each exon
+        exonReadsMapped = []
+        for exonIndexRange in exonIndexRanges:
+            startIndex = exonIndexRange[0]
+            endIndex = exonIndexRange[1]
+
+            exon = genome[startIndex:(endIndex + 1)]
+            exons.append(exon)
+
+            exonLength = len(exon)
+            exonLengths.append(exonLength)
+
+            # slide each read along the exon, and see if the read matches perfectly
+            currAlignedReads = 0
+            for read in reads:
+                for start in range(exonLength - READ_LENGTH + 1):
+                    currExonSection = exon[start:(start + READ_LENGTH)]
+                    
+                    # we found a match
+                    if read == currExonSection:
+                        currAlignedReads += 1
+
+            exonReadsMapped.append(currAlignedReads)
+
+        # form the matrix for the gene
+
+        # initialize exonMatrix to all 0s
+        exonMatrix = []
+        for row in range(numExons):
+            currRow = []
+            for col in range(numIsoforms):
+                currRow.append(0)
+            exonMatrix.append(currRow)
+
+        for currExonIndex in range(numExons):
+            for currIsoformIndex in range(numIsoforms):
+                currIsoform = isoforms[currIsoformIndex]
+
+                # if currExon is in currIsoform
+                if currExonIndex in currIsoform:
+                    matrixVal = exonLengths[currExonIndex] / READ_LENGTH
+                    exonMatrix[currExonIndex][currIsoformIndex] = matrixVal
+
+        # now that we have exon matrix and reads mapped vector, use linear algebra to find coverages of isoforms
+        isoformCoverages = list((np.linalg.lstsq(exonMatrix, exonReadsMapped, rcond=None))[0])
+
+        coverageSum = sum(isoformCoverages)
+
+        isoformAbundances = list(map(lambda coverage: coverage / coverageSum, isoformCoverages))
+
+        # add the isoform abundances to the result
+        for i in range(numIsoforms):
+            isoform = isoforms[i]
+
+            # form the isoform transcript
+            isoformTranscript = ""
+            for exonNum in isoform:
+                isoformTranscript += exons[exonNum]
+
+            # add to result
+            result.append((isoformTranscript, isoformAbundances[i]))
+
+    return result
 
 
 if __name__ == "__main__":
@@ -112,7 +185,6 @@ if __name__ == "__main__":
     genes = parse_annotation_file(annotation_fn)
     genome = parse_genome_file(genome_fn)
     reads = parse_reads_file(reads_fn)
-    print(len(reads))
     output = quantify_isoforms(genes, genome, reads)
     with open(output_fn, 'w') as oFile:
         oFile.write('>' + args.output_header + '\n')
